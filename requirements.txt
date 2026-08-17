@@ -1,0 +1,6 @@
+flask
+supabase
+tifffile
+imagecodecs
+numpy
+pillow
