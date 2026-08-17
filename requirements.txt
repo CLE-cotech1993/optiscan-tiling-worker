@@ -5,3 +5,4 @@ tifffile
 imagecodecs
 numpy
 pillow
+requests
