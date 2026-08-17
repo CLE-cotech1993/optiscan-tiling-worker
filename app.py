@@ -16,7 +16,7 @@ SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 TILE_SIZE = 512
 
 
@@ -107,8 +107,11 @@ def health():
     return "tiling worker ok"
 
 
-@app.route("/tile", methods=["POST"])
+@app.route("/tile", methods=["POST", "OPTIONS"])
 def tile_slide():
+    if request.method == "OPTIONS":
+        return ('', 204)
+
     payload = request.get_json(force=True)
     record = payload.get("record", {})
     slide_id = record.get("id")
