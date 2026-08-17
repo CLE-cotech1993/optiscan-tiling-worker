@@ -3,6 +3,7 @@ import io
 import json
 import math
 import tempfile
+import threading
 import numpy as np
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -63,21 +64,9 @@ def tile_page(page, level_idx, slide_id):
     return {"level": level_idx, "width": iw, "height": il, "tile_size": TILE_SIZE, "cols": cols, "rows": rows}
 
 
-@app.route("/", methods=["GET"])
-def health():
-    return "tiling worker ok"
-
-
-@app.route("/tile", methods=["POST"])
-def tile_slide():
-    payload = request.get_json(force=True)
-    record = payload.get("record", {})
+def process_tiling(record):
     slide_id = record.get("id")
     file_name = record.get("file_name")
-
-    if not slide_id or not file_name:
-        return jsonify({"error": "missing id or file_name"}), 400
-
     local_path = None
     try:
         supabase.table("slides").update({"status": "processing"}).eq("id", slide_id).execute()
@@ -104,15 +93,34 @@ def tile_slide():
         )
 
         supabase.table("slides").update({"status": "tiled"}).eq("id", slide_id).execute()
-        return jsonify({"status": "ok", "levels": levels_info})
 
-    except Exception as e:
+    except Exception:
         supabase.table("slides").update({"status": "error"}).eq("id", slide_id).execute()
-        return jsonify({"error": str(e)}), 500
 
     finally:
         if local_path and os.path.exists(local_path):
             os.remove(local_path)
+
+
+@app.route("/", methods=["GET"])
+def health():
+    return "tiling worker ok"
+
+
+@app.route("/tile", methods=["POST"])
+def tile_slide():
+    payload = request.get_json(force=True)
+    record = payload.get("record", {})
+    slide_id = record.get("id")
+    file_name = record.get("file_name")
+
+    if not slide_id or not file_name:
+        return jsonify({"error": "missing id or file_name"}), 400
+
+    thread = threading.Thread(target=process_tiling, args=(record,), daemon=True)
+    thread.start()
+
+    return jsonify({"status": "accepted", "slide_id": slide_id}), 202
 
 
 if __name__ == "__main__":
