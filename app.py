@@ -4,6 +4,7 @@ import json
 import math
 import tempfile
 import threading
+import time
 import requests
 import numpy as np
 from flask import Flask, request, jsonify
@@ -59,9 +60,17 @@ def tile_page(page, level_idx, slide_id):
             Image.fromarray(out).save(buf, format="JPEG", quality=88)
             buf.seek(0)
             path = f"{slide_id}/level{level_idx}/{tx_out}_{ty_out}.jpg"
-            supabase.storage.from_("tiles").upload(
-                path, buf.read(), {"content-type": "image/jpeg", "upsert": "true"}
-            )
+            tile_bytes = buf.read()
+            for attempt in range(4):
+                try:
+                    supabase.storage.from_("tiles").upload(
+                        path, tile_bytes, {"content-type": "image/jpeg", "upsert": "true"}
+                    )
+                    break
+                except Exception:
+                    if attempt == 3:
+                        raise
+                    time.sleep(1.5 * (attempt + 1))
     return {"level": level_idx, "width": iw, "height": il, "tile_size": TILE_SIZE, "cols": cols, "rows": rows}
 
 
