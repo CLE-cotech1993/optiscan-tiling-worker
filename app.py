@@ -5,6 +5,7 @@ import math
 import tempfile
 import numpy as np
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from PIL import Image
 import tifffile
 from supabase import create_client
@@ -14,6 +15,7 @@ SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 app = Flask(__name__)
+CORS(app)
 TILE_SIZE = 512
 
 
