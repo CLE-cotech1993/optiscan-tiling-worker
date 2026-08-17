@@ -4,6 +4,7 @@ import json
 import math
 import tempfile
 import threading
+import requests
 import numpy as np
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -71,10 +72,16 @@ def process_tiling(record):
     try:
         supabase.table("slides").update({"status": "processing"}).eq("id", slide_id).execute()
 
-        raw_bytes = supabase.storage.from_("raw-slides").download(file_name)
         with tempfile.NamedTemporaryFile(suffix=".svs", delete=False) as f:
-            f.write(raw_bytes)
             local_path = f.name
+
+        download_url = f"{SUPABASE_URL}/storage/v1/object/raw-slides/{file_name}"
+        headers = {"Authorization": f"Bearer {SUPABASE_SERVICE_KEY}"}
+        with requests.get(download_url, headers=headers, stream=True) as r:
+            r.raise_for_status()
+            with open(local_path, "wb") as out_f:
+                for chunk in r.iter_content(chunk_size=8 * 1024 * 1024):
+                    out_f.write(chunk)
 
         tf = tifffile.TiffFile(local_path)
         pages = get_pyramid_pages(tf)
@@ -94,7 +101,10 @@ def process_tiling(record):
 
         supabase.table("slides").update({"status": "tiled"}).eq("id", slide_id).execute()
 
-    except Exception:
+    except Exception as e:
+        import traceback
+        print("TILING ERROR:", str(e))
+        traceback.print_exc()
         supabase.table("slides").update({"status": "error"}).eq("id", slide_id).execute()
 
     finally:
